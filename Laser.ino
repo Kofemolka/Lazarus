@@ -3,19 +3,31 @@
 
 
 #define laser 13
-#define sensor A5
-
-const byte interruptPin = 2;
-
-unsigned int NbTopsFan;
-unsigned int MeasuredTopsFan;
+#define sensor A4
+#define interruptPin 2
 
 volatile bool fanSensorOn = false;
 
 unsigned char data[] = { 0b10110011, 
 						 0b10001111,
 						 0b00001110,
-						 0b00110010 };
+						 0b00110010,
+	0b10110011,
+	0b10001111,
+	0b00001110,
+	0b00110010,
+	0b10110011,
+	0b10001111,
+	0b00001110,
+	0b00110010,
+	0b10110011,
+	0b10001111,
+	0b00001110,
+	0b00110010,
+	0b10110011,
+	0b10001111,
+	0b00001110,
+	0b00110010 };
 
 void setupInterrupts()
 {
@@ -32,15 +44,13 @@ void setupInterrupts()
 	sei();
 }
 
-
-
 void setup()
 {
 	pinMode(laser, OUTPUT);
-	Serial.begin(115200);
+	digitalWrite(laser, LOW);
+	Serial.begin(115200);	
 	
-	digitalWrite(laser, HIGH);
-	pinMode(A4, INPUT);
+	pinMode(sensor, INPUT);
 	setupInterrupts();
 
 	TCCR2A = 0x23;
@@ -51,7 +61,6 @@ void setup()
 
 	pinMode(interruptPin, INPUT_PULLUP);
 	attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);
-
 }
 
 enum EState
@@ -62,29 +71,23 @@ enum EState
 	Waiting
 };
 
-EState state = EState::Waiting;
+EState state = EState::Resting;
 
 unsigned int dataNdx = 0;
-float skipNdx = 0;
+unsigned int skipNdx = 0;
 
 unsigned long prevStart = 0;
 unsigned long timer = 0;
 unsigned long lapTime = 360;
 unsigned long  pixel = 1;
-const int lapDivider = 90;
-
-unsigned long curPixel = 0;
-
-unsigned long restNdx = 0;
 
 void blink() {
 	fanSensorOn = true;
 
-	int val = analogRead(A4);
+	int val = analogRead(sensor);
 
 	int duty = map(val, 0, 1023, 0, 255);
-	OCR2B = duty;
-	
+	OCR2B = duty;	
 }
 
 ISR(TIMER1_COMPA_vect)
@@ -110,8 +113,7 @@ ISR(TIMER1_COMPA_vect)
 		{
 			dataNdx = 0;			
 			state = EState::Resting;
-			digitalWrite(laser, LOW);
-			restNdx = 0;			
+			digitalWrite(laser, LOW);					
 		}
 		else
 		{
@@ -122,19 +124,7 @@ ISR(TIMER1_COMPA_vect)
 		}
 		break;	
 
-	case EState::Resting:	
-		restNdx += pixel;
-
-		if (restNdx < lapTime/2)
-		{			
-			return;
-		}
-		
-		digitalWrite(laser, HIGH);
-		state = EState::Waiting;
-		return;
-
-	case EState::Waiting:	
+	case EState::Resting:
 		if(fanSensorOn)		
 		{	
 			fanSensorOn = false;			
