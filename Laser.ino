@@ -1,6 +1,16 @@
+// Definition of interrupt names
+// ISR interrupt service routine
+
+
 #define laser 13
 #define sensor A5
 
+const byte interruptPin = 2;
+
+unsigned int NbTopsFan;
+unsigned int MeasuredTopsFan;
+
+volatile bool fanSensorOn = false;
 
 unsigned char data[] = { 0b10110011, 
 						 0b10001111,
@@ -22,14 +32,26 @@ void setupInterrupts()
 	sei();
 }
 
+
+
 void setup()
 {
 	pinMode(laser, OUTPUT);
-	//Serial.begin(115200);
+	Serial.begin(115200);
 	
 	digitalWrite(laser, HIGH);
-
+	pinMode(A4, INPUT);
 	setupInterrupts();
+
+	TCCR2A = 0x23;
+	TCCR2B = 0x09;  // select clock
+	OCR2A = 79;  // aiming for 25kHz
+	pinMode(3, OUTPUT);  // enable the PWM output (you now have a PWM signal on digital pin 3)
+	OCR2B = 62;  // set the PWM duty cycle
+
+	pinMode(interruptPin, INPUT_PULLUP);
+	attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);
+
 }
 
 enum EState
@@ -47,13 +69,23 @@ float skipNdx = 0;
 
 unsigned long prevStart = 0;
 unsigned long timer = 0;
-float lapTime = 360;
-float  pixel = 1;
-const int lapDivider = 180;
+unsigned long lapTime = 360;
+unsigned long  pixel = 1;
+const int lapDivider = 90;
 
 unsigned long curPixel = 0;
 
-float restNdx = 0;
+unsigned long restNdx = 0;
+
+void blink() {
+	fanSensorOn = true;
+
+	int val = analogRead(A4);
+
+	int duty = map(val, 0, 1023, 0, 255);
+	OCR2B = duty;
+	
+}
 
 ISR(TIMER1_COMPA_vect)
 {
@@ -72,9 +104,7 @@ ISR(TIMER1_COMPA_vect)
 		return;
 
 	case EState::Scanning:
-		
-			dataNdx++;
-		
+		dataNdx++;		
 
 		if (dataNdx >= sizeof(data) * 8)
 		{
@@ -105,11 +135,11 @@ ISR(TIMER1_COMPA_vect)
 		return;
 
 	case EState::Waiting:	
-		if (analogRead(sensor) <100)
+		if(fanSensorOn)		
 		{	
-			int newLap = timer - prevStart;
-			lapTime = (newLap + lapTime)/2;
-			pixel = lapTime / lapDivider;
+			fanSensorOn = false;			
+
+			lapTime = timer - prevStart;		
 			
 			prevStart = timer;			
 
@@ -124,7 +154,6 @@ ISR(TIMER1_COMPA_vect)
 
 void loop()
 {		
-
 	//Serial.println(lapTime);
 	
 }
