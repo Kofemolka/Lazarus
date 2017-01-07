@@ -1,33 +1,17 @@
-// Definition of interrupt names
-// ISR interrupt service routine
-
-
 #define laser 13
 #define sensor A4
 #define interruptPin 2
 
 volatile bool fanSensorOn = false;
 
-unsigned char data[] = { 0b10110011, 
-						 0b10001111,
-						 0b00001110,
-						 0b00110010,
-	0b10110011,
+unsigned char data[] = {
+	0b10101010,
+	0b10110011, 
 	0b10001111,
 	0b00001110,
 	0b00110010,
-	0b10110011,
-	0b10001111,
-	0b00001110,
-	0b00110010,
-	0b10110011,
-	0b10001111,
-	0b00001110,
-	0b00110010,
-	0b10110011,
-	0b10001111,
-	0b00001110,
-	0b00110010 };
+	0b10101010 
+};
 
 void setupInterrupts()
 {
@@ -36,7 +20,7 @@ void setupInterrupts()
 	TCCR1A = 0;
 	TCCR1B = 0;
 	TCNT1 = 0;
-	OCR1A = 0;
+	OCR1A = 1;
 	TCCR1B |= (1 << WGM12);
 	TCCR1B |= (1 << CS10);	
 	TIMSK1 |= (1 << OCIE1A);
@@ -57,10 +41,10 @@ void setup()
 	TCCR2B = 0x09;  // select clock
 	OCR2A = 79;  // aiming for 25kHz
 	pinMode(3, OUTPUT);  // enable the PWM output (you now have a PWM signal on digital pin 3)
-	OCR2B = 62;  // set the PWM duty cycle
+	OCR2B = 255;  // set the PWM duty cycle
 
 	pinMode(interruptPin, INPUT_PULLUP);
-	attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(interruptPin), blink, RISING);
 }
 
 enum EState
@@ -81,13 +65,14 @@ unsigned long timer = 0;
 unsigned long lapTime = 360;
 unsigned long  pixel = 1;
 
+unsigned long skipPixels = 0;
+
 void blink() {
 	fanSensorOn = true;
 
 	int val = analogRead(sensor);
 
-	int duty = map(val, 0, 1023, 0, 255);
-	OCR2B = duty;	
+	skipPixels = map(val, 0, 1023, 0, lapTime);	
 }
 
 ISR(TIMER1_COMPA_vect)
@@ -98,11 +83,11 @@ ISR(TIMER1_COMPA_vect)
 	{
 	case EState::Skipping:	
 		skipNdx += pixel;
-		if (skipNdx < lapTime/4)
+		if (skipNdx < skipPixels)
 		{			
 			return;
 		}
-
+		
 		state = EState::Scanning;
 		return;
 
@@ -113,7 +98,7 @@ ISR(TIMER1_COMPA_vect)
 		{
 			dataNdx = 0;			
 			state = EState::Resting;
-			digitalWrite(laser, LOW);					
+			digitalWrite(laser, LOW);				
 		}
 		else
 		{
@@ -144,6 +129,9 @@ ISR(TIMER1_COMPA_vect)
 
 void loop()
 {		
+	//yAxis.step(2);
+	//delayMicroseconds(10);
+	//yAxis.step(-2);
 	//Serial.println(lapTime);
 	
 }
